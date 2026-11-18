@@ -1,9 +1,7 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
-const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 
-// URL de tu FastAPI en Render
 const BARTOK_URL = process.env.BARTOK_URL || "https://bartok-negocio1.onrender.com/hablar";
 
 async function connectToWhatsApp() {
@@ -11,17 +9,17 @@ async function connectToWhatsApp() {
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        printQRInTerminal: false // Desactivamos el QR de líneas rotas
     });
-
-    sock.implementsCredentialUpdate = saveCreds;
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
-            console.log('Escanea este código QR con tu WhatsApp, Jefe:');
-            qrcode.generate(qr, { small: true });
+            console.log('--- CÓDIGO QR GENERADO ---');
+            console.log('Copia este texto y conviértelo a QR en cualquier página web gratuita (como qrcode-monkey.com):');
+            console.log(qr);
+            console.log('---------------------------');
         }
 
         if (connection === 'close') {
@@ -44,7 +42,6 @@ async function connectToWhatsApp() {
         if (!msg.message || msg.key.fromMe) return;
 
         const senderID = msg.key.remoteJid;
-        // Captura el texto del mensaje (ya sea texto plano o en burbuja extendida)
         const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
         if (!textMessage) return;
@@ -52,14 +49,11 @@ async function connectToWhatsApp() {
         console.log(`Mensaje recibido de ${senderID}: ${textMessage}`);
 
         try {
-            // Enviamos el mensaje al endpoint de FastAPI en Render
             const response = await axios.get(BARTOK_URL, {
                 params: { mensaje: textMessage }
             });
 
             const respuestaBartok = response.data.respuesta || "¡Oh no, Jefe! No obtuve respuesta clara del servidor.";
-
-            // Respondemos de vuelta en el chat de WhatsApp
             await sock.sendMessage(senderID, { text: respuestaBartok });
 
         } catch (error) {
