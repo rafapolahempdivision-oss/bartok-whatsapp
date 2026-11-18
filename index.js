@@ -14,22 +14,7 @@ async function connectToWhatsApp() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    if (!sock.authState.creds.registered) {
-        setTimeout(async () => {
-            try {
-                const cleanNumber = PHONE_NUMBER.replace(/[^0-9]/g, '');
-                console.log(`Solicitando código de emparejamiento para el número: ${cleanNumber}...`);
-                const code = await sock.requestPairingCode(cleanNumber);
-                console.log('==================================================');
-                console.log(` TU CÓDIGO DE EMPAREJAMIENTO ES: ${code} `);
-                console.log('==================================================');
-            } catch (err) {
-                console.error('Error al solicitar el código de emparejamiento:', err.message);
-            }
-        }, 5000); // Espera 5 segundos a que el socket conecte antes de pedir el código
-    }
-
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'close') {
@@ -42,6 +27,22 @@ async function connectToWhatsApp() {
             console.log('¡Bartok se ha conectado a WhatsApp exitosamente, Jefe!');
         }
     });
+
+    // Solicitamos el código de emparejamiento de forma segura si no está registrado
+    if (!sock.authState.creds.registered) {
+        setTimeout(async () => {
+            try {
+                const cleanNumber = PHONE_NUMBER.replace(/[^0-9]/g, '');
+                console.log(`Solicitando código de emparejamiento para el número: ${cleanNumber}...`);
+                const code = await sock.requestPairingCode(cleanNumber);
+                console.log('==================================================');
+                console.log(` TU CÓDIGO DE EMPAREJAMIENTO ES: ${code} `);
+                console.log('==================================================');
+            } catch (err) {
+                console.error('Error al solicitar el código de emparejamiento:', err.message);
+            }
+        }, 6000); // 6 segundos de margen para que establezca handshake con WhatsApp
+    }
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -74,4 +75,3 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
-      
