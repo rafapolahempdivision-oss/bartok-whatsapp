@@ -1,72 +1,14 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
-const qrcode = require('qrcode-terminal');
-const axios = require('axios');
-
-// URL de tu FastAPI en Render
-const BARTOK_URL = process.env.BARTOK_URL || "https://bartok-negocio1.onrender.com/hablar";
-
-async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true
-    });
-
-    sock.implementsCredentialUpdate = saveCreds;
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if (qr) {
-            console.log('Escanea este código QR con tu WhatsApp, Jefe:');
-            qrcode.generate(qr, { small: true });
-        }
-
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Conexión cerrada. Reconectando...', shouldReconnect);
-            if (shouldReconnect) {
-                connectToWhatsApp();
-            }
-        } else if (connection === 'open') {
-            console.log('¡Bartok se ha conectado a WhatsApp exitosamente, Jefe!');
-        }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (type !== 'notify') return;
-
-        const msg = messages[0];
-        if (!msg.message || msg.key.fromMe) return;
-
-        const senderID = msg.key.remoteJid;
-        // Captura el texto del mensaje (ya sea texto plano o en burbuja extendida)
-        const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text;
-
-        if (!textMessage) return;
-
-        console.log(`Mensaje recibido de ${senderID}: ${textMessage}`);
-
-        try {
-            // Enviamos el mensaje al endpoint de FastAPI en Render
-            const response = await axios.get(BARTOK_URL, {
-                params: { mensaje: textMessage }
-            });
-
-            const respuestaBartok = response.data.respuesta || "¡Oh no, Jefe! No obtuve respuesta clara del servidor.";
-
-            // Respondemos de vuelta en el chat de WhatsApp
-            await sock.sendMessage(senderID, { text: respuestaBartok });
-
-        } catch (error) {
-            console.error('Error al comunicarse con Bartok en Render:', error.message);
-            await sock.sendMessage(senderID, { text: "¡Ay, caray, Jefe! Hubo un pequeño fallo al consultar mi memoria en el servidor." });
-        }
-    });
+{
+  "name": "bartok-whatsapp",
+  "version": "1.0.0",
+  "description": "Puente de WhatsApp para Bartok",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.5",
+    "axios": "^1.6.8",
+    "qrcode-terminal": "^0.12.0"
+  }
 }
-
-connectToWhatsApp();
